@@ -1,7 +1,7 @@
 <?php
 
 // Replace with your actual API key
-$apiKey = 'AIzaSyAMWxaoB5HaarQ-PTP-Dk1a86xngqLTnCg';
+$apiKey = 'API_KEY';
 
 // The base URL for the YouTube API endpoint
 $baseUrl = 'https://www.googleapis.com/youtube/v3/';
