@@ -9,7 +9,7 @@ $baseUrl = 'https://www.googleapis.com/youtube/v3/';
 // Search parameters
 $maxResults = 25;
 $videoType = 'video'; // Type of content
-$minViewCount = 500; // More than 500 views
+$minViewCount = 1000; // More than 500 views
 $videoCategoryId = '28'; // Science & Technology
 
 // List of video durations to search for
