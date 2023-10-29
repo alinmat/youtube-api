@@ -7,9 +7,9 @@ $apiKey = 'API_KEY';
 $baseUrl = 'https://www.googleapis.com/youtube/v3/';
 
 // Search parameters
-$maxResults = 25;
+$maxResults = 15;
 $videoType = 'video'; // Type of content
-$minViewCount = 1000; // More than 500 views
+$minViewCount = 100; // More than 500 views
 $videoCategoryId = '28'; // Science & Technology
 
 // List of video durations to search for
@@ -24,7 +24,6 @@ $wantedChannels = array(
 
 // List of unwanted channel IDs
 $unwantedChannels = array(
-    '',
     '',
     // Add more unwanted channel IDs here
 );
@@ -98,6 +97,32 @@ function sendApiRequest($requestUrl)
 
     // Decode the JSON response
     return json_decode($response, true);
+}
+
+// Function to fetch the channel name
+function getChannelName($channelId)
+{
+	global $baseUrl, $apiKey;
+	
+    $requestUrl = $baseUrl . 'channels' .
+        '?part=snippet' .
+        '&id=' . $channelId .
+        '&key=' . $apiKey;
+
+    $cacheKey = md5($requestUrl);
+    $cachedResponse = getCachedApiResponse($cacheKey);
+
+    if ($cachedResponse !== false) {
+        return $cachedResponse['items'][0]['snippet']['title'];
+    } else {
+        $response = apiRequestWithExponentialBackoff($requestUrl);
+        if ($response !== false) {
+            cacheApiResponse($cacheKey, $response);
+            return $response['items'][0]['snippet']['title'];
+        }
+    }
+
+    return '';
 }
 
 // Initialize an array to store combined results
@@ -186,40 +211,55 @@ usort($combinedResults, function ($a, $b) {
 <body>
     <div class="video-grid">
         <?php
-        foreach ($combinedResults as $item) {
-            $channelId = $item['snippet']['channelId'];
+		// Initialize a counter for displayed videos
+		$displayedVideos = 0;
 
-            // Check if the channel is unwanted
-            if (!in_array($channelId, $unwantedChannels)) {
-                $videoId = $item['id']['videoId'];
-                $videoLink = 'https://www.youtube.com/watch?v=' . $videoId;
-                $videoTitle = htmlspecialchars($item['snippet']['title']);
-                $mediumThumbnail = $item['snippet']['thumbnails']['medium']['url'];
+		foreach ($combinedResults as $item) {
+			$channelId = $item['snippet']['channelId'];
 
-                // Fetch video statistics to get view count
-                $videoStatsUrl = $baseUrl . 'videos' .
-                    '?part=statistics' .
-                    '&id=' . $videoId .
-                    '&key=' . $apiKey;
+			// Check if the channel is unwanted
+			if (!in_array($channelId, $unwantedChannels)) {
+				$videoId = $item['id']['videoId'];
+				$videoLink = 'https://www.youtube.com/watch?v=' . $videoId;
+				$videoTitle = htmlspecialchars($item['snippet']['title']);
+				$videoDate = date('M j, Y', strtotime($item['snippet']['publishedAt']));
+				$mediumThumbnail = $item['snippet']['thumbnails']['medium']['url'];
 
-                $statsResponse = file_get_contents($videoStatsUrl);
-                $statsData = json_decode($statsResponse, true);
+				// Fetch video statistics to get view count
+				$videoStatsUrl = $baseUrl . 'videos' .
+					'?part=statistics' .
+					'&id=' . $videoId .
+					'&key=' . $apiKey;
 
-                if (isset($statsData['items'][0]['statistics']['viewCount'])) {
-                    $viewCount = $statsData['items'][0]['statistics']['viewCount'];
+				$statsResponse = file_get_contents($videoStatsUrl);
+				$statsData = json_decode($statsResponse, true);
 
-                    // Only display videos with view count more than 500
-                    if ($viewCount > $minViewCount) {
-                        echo '<div class="video-card">' . PHP_EOL;
-                        echo '    <a class="video-title" href="' . $videoLink . '" title="' . $videoTitle . '">' . PHP_EOL;
-                        echo '        <img class="video-thumbnail" src="' . $mediumThumbnail . '" alt="' . $videoTitle . '">' . PHP_EOL;
-                        echo '        ' . $videoTitle . PHP_EOL;
-                        echo '    </a>' . PHP_EOL;
-                        echo '</div>' . PHP_EOL;
-                    }
-                }
-            }
-        }
+				if (isset($statsData['items'][0]['statistics']['viewCount'])) {
+					$viewCount = $statsData['items'][0]['statistics']['viewCount'];
+
+					$channelName = getChannelName($channelId);
+
+					// Only display videos with view count more than 100
+					if ($viewCount > $minViewCount) {
+						echo '<div class="video-card">' . PHP_EOL;
+						echo '    <a class="video-title" href="' . $videoLink . '" title="' . $videoTitle . '">' . PHP_EOL;
+						echo '        <img class="video-thumbnail" src="' . $mediumThumbnail . '" alt="' . $videoTitle . '">' . PHP_EOL;
+						echo '       ' . $videoTitle . ' FROM ' . $channelName . PHP_EOL;
+						echo '    </a>' . PHP_EOL;
+						echo '    <div class="video-date">' . $videoDate . '</div>' . PHP_EOL;
+						echo '</div>' . PHP_EOL;
+
+						// Increment the displayed videos counter
+						$displayedVideos++;
+
+						// If the limit is reached, exit the loop
+						if ($displayedVideos >= 15) {
+							break;
+						}
+					}
+				}
+			}
+		}
         ?>
     </div>
 </body>
